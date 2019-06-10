@@ -1,4 +1,6 @@
 # Baselines
+Requirements: Pytorch on a cuda enabled GPU, tensorboard, hdf5
+
 This repo contains the baseline models for image data (hdf5 format) and a simple linear model for sea2sky data (csv format).
 
 To train a new model, use this command in the code's directory with the appropriate arguments:
@@ -13,3 +15,5 @@ To see what each attribute presents, look at the get_args function in main.
 To validate a model and plot its ROC and AUC curves, set validate to be true `--validate True`.
 
 To train a model for sea2sky dataset, set the sea2sky flag to true `--sea2sky True`. This flag should remain true for validation as well.
+
+Also, for the sea2sky dataset, there are some helper functions that I wrote for data cleaning and merging multiple csv files (outputs from the matcher) that can be used. The ultimate input data (datapath) to the code is a data table consisting of 136 features, which are available in `sea2sky_features.csv` file.
