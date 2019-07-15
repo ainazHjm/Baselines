@@ -10,9 +10,35 @@ def normalize(f, feature_idx):
     f['train']['data'][:, feature_idx] = (f['train']['data'][:, feature_idx]-mean)/std
     f['test']['data'][:, feature_idx] = (f['test']['data'][:, feature_idx]-mean)/std
     # import ipdb; ipdb.set_trace()
-    return f
+    return f            
 
-def create_dataset(path, shape):
+def find_mostfrequent(feature):
+    (h, w) = feature.shape
+    frequent = -1
+    idx = -1
+    for c in range(w):
+        frq = np.sum(feature[:, c])
+        if frequent < frq:
+            frequent = frq
+            idx = c
+    return idx
+
+def find_nodata(data_mat, num_features=9):
+    feature_indices = [0, 4, 13, 35, 91, 116, 126, 133, 134]
+    for r in range(data.shape[0]):
+        sample = data_mat[r, :]
+        for i in range(len(feature_indices)-1):
+            feature = sample[feature_indices[i]:feature_indices[i+1]]
+            if np.sum(feature) == 0: #it means that we have a no data point here
+                idx = find_mostfrequent(feature)
+                sample[feature_indices[i]:feature_indices[i+1]][idx] = 1
+        feature = sample[feature_indices[-1]:]
+        if np.sum(feature) == 0: #no-data point
+            sample[feature_indices[-1]:][idx] = 1
+        data_mat[r, :] = sample
+    return data_mat
+
+def create_dataset(path, shape, imputation=False):
     wr_path = '/'.join(path.split('.')[0].split('/')[:-1])
     print(wr_path)
     f = h5py.File(wr_path+'sea2sky.h5', 'a')
@@ -30,6 +56,8 @@ def create_dataset(path, shape):
             idx += 1
     print(idx, h) # idx is the new h
     filtered_data_mat = data_mat[0:idx, :]
+    if imputation:
+        filtered_data_mat = find_nodata(filtered_data_mat)
     np.random.shuffle(filtered_data_mat)
     n_h = idx
     f.create_dataset('train/data', (n_h-n_h//5, w-1))
