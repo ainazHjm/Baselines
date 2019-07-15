@@ -39,40 +39,43 @@ def find_nodata(data_mat, num_features=9):
     return data_mat
 
 def create_dataset(path, shape, imputation=False):
-    wr_path = '/'.join(path.split('.')[0].split('/')[:-1])
+    wr_path = '/'.join(path.split('/')[:-1])
     print(wr_path)
-    f = h5py.File(wr_path+'sea2sky.h5', 'a')
+    f = h5py.File(wr_path+'/sea2sky.h5', 'a')
     (h, w) = shape
     idx = 0
     data_mat = np.zeros(shape)
     with open(path, 'r') as g:
         gr = csv.reader(g)
         for row in gr:
-            assert len(row) == 137
+            assert len(row) == 137+1
             n_row = np.array([float(e) for e in row])
-            if n_row[133] == 0.: #ignore 0 precipitation
-                continue
+            # if n_row[133] == 0.: #ignore 0 precipitation
+            #     continue
             data_mat[idx, :] = n_row
             idx += 1
-    print(idx, h) # idx is the new h
-    filtered_data_mat = data_mat[0:idx, :]
+    # print(idx, h) # idx is the new h
+    # filtered_data_mat = data_mat[0:idx, :]
     if imputation:
-        filtered_data_mat = find_nodata(filtered_data_mat)
-    np.random.shuffle(filtered_data_mat)
-    n_h = idx
-    f.create_dataset('train/data', (n_h-n_h//5, w-1))
-    f.create_dataset('train/gt', (n_h-n_h//5, 1))
-    f.create_dataset('test/data', (n_h//5, w-1))
-    f.create_dataset('test/gt', (n_h//5, 1))
-    f['test']['data'][:, :] = filtered_data_mat[0:n_h//5, :-1]
-    f['test']['gt'][:, :] = filtered_data_mat[0:n_h//5, -1].reshape(n_h//5, 1)
-    f['train']['data'][:, :] = filtered_data_mat[n_h//5:, :-1]
-    f['train']['gt'][:, :] = filtered_data_mat[n_h//5:, -1].reshape(n_h-n_h//5, 1)
+        data_mat = find_nodata(data_mat)
+    np.random.shuffle(data_mat)
+    f.create_dataset('train/data', (h-h//5, w-2))
+    f.create_dataset('train/gt', (h-h//5, 1))
+    f.create_dataset('train/id', (h-h//5, 1))
+    f.create_dataset('test/data', (h//5, w-2))
+    f.create_dataset('test/gt', (h//5, 1))
+    f.create_dataset('test/id', (h//5, 1))
+    f['test']['data'][:, :] = data_mat[0:h//5, :-2]
+    f['test']['gt'][:, :] = data_mat[0:h//5, -1].reshape(h//5, 1)
+    f['test']['id'][:, :] = data_mat[0:h//5, -2].reshape(h//5, 1)
+    f['train']['data'][:, :] = data_mat[h//5:, :-2]
+    f['train']['gt'][:, :] = data_mat[h//5:, -1].reshape(h-h//5, 1)
+    f['train']['id'][:, :] = data_mat[h//5:, -2].reshape(h-h//5, 1)
     # import ipdb; ipdb.set_trace()
     f = normalize(f, 133)
     f.close()
 
-def create_csv_table():
+def create_csv_table(path):
     features = {
         2: 'FID_River_',
         4: 'FID_Lake',
@@ -90,12 +93,12 @@ def create_csv_table():
         31: 'FAULT_TYPE',
         38: 'AvgPrecip'
     }
-    fd = open('data_dict.json')
+    fd = open(path+'data_dict.json')
     data_dict = json.load(fd)
 
     with open('data_table.csv', 'w') as f:
         fw = csv.writer(f)
-        with open('all_attributes.csv', 'r') as g:
+        with open(path+'all_attributes.csv', 'r') as g:
             gr = csv.reader(g)
             for row in gr:
                 init_features = [0 for _ in range(len(data_dict))]
@@ -115,32 +118,39 @@ def create_csv_table():
                             if row[feature_num] in data_dict:
                                 id_ = data_dict[row[feature_num]]
                                 init_features[int(id_)] = 1
+                init_features.extend([row[0]]) # the target id
                 init_features.extend([float(row[-1])/100]) # the probability of the target (label)
                 fw.writerow(init_features)
     fd.close()
 
-def find_target(target_id):
-    with open('s2s_target_scores_top10000.csv', 'r') as f:
+def find_target(target_id, path):
+    with open(path+'s2s_target_scores_top10000.csv', 'r') as f:
         fr = csv.reader(f)
         for row in fr:
             if row[0] == target_id:
                 return row[4]
         return -1
-def merge_all_csv():
+def merge_all_csv(path):
     with open('all_attributes.csv', 'w') as f:
         fw = csv.writer(f)
-        with open('s2s_target_attributes_all.csv', 'r') as g:
+        with open(path+'s2s_target_attributes_all.csv', 'r') as g:
             gr = csv.reader(g)
             for row in gr:
-                if int(row[38]) == 0: #AvgPrecip is zero, ignore
-                    print(row[0])
-                    continue
-                target = row[0]
-                found = find_target(target)
-                if found == -1:
-                    continue
-                else:
+                if row[0] == 'target_id':
                     w_row = []
                     w_row.extend(row)
-                    w_row.extend([found])                    
+                    w_row.extend('score')
                     fw.writerow(w_row)
+                else:
+                    if int(row[38]) == 0: # AvgPrecip is zero, ignore
+                        print(row[0])
+                        continue
+                    target = row[0]
+                    found = find_target(target, path)
+                    if found == -1:
+                        continue
+                    else:
+                        w_row = []
+                        w_row.extend(row)
+                        w_row.extend([found])                    
+                        fw.writerow(w_row)

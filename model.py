@@ -3,15 +3,16 @@ import torch.nn as nn
 import torch as th
 
 class Area(nn.Module):
+    '''
+    to get the ratio yourself, use this:
+        from PIL import Image
+        Image.MAX_IMAGE_PIXELS = 100000000000
+        gt = np.array(Image.open(gt_path))
+        self.ratio = np.sum(gt == 1)/(np.sum(gt==0) + np.sum(gt==1))
+    '''
     def __init__(self, gt_path):
         super(Area, self).__init__()
-        #from PIL import Image
-        #Image.MAX_IMAGE_PIXELS = 100000000000
-        #gt = np.array(Image.open(gt_path))
-        #self.ratio = np.sum(gt == 1)/(np.sum(gt==0) + np.sum(gt==1))
         self.ratio = 0.003
-        # print(self.ratio)
-        # self.dist = th.distributions.bernoulli.Bernoulli(th.tensor(self.ratio))
 
     def sample(self):
         if np.random.rand() < self.ratio:

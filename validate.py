@@ -1,53 +1,75 @@
+import csv
+import model
+import json
+import copy
 import torch as th
 import numpy as np
 import torch.nn as nn
 import sklearn.metrics as metrics
 import matplotlib.pyplot as plt
+from time import ctime
 
-def validate_on_ones(args, testData):
-    sig = nn.Sigmoid()
-    model = th.load(args.load_model)
-    pos_indices = np.load(args.pos_indices)
-    num_samples = 4
-    samples = np.random.choice(pos_indices, num_samples)
-    for i in range(num_samples):
-        data = testData[samples[i]]['data']
-        gt = testData[samples[i]]['gt']
-        prds = sig(model.predict(data.view(1, args.feature_num, args.ws, args.ws).cuda()))[0, 0, :, :]
-        np.save(args.save_res_to+str(i)+'.npy', prds.cpu().data.numpy())
-        np.save(args.save_res_to+str(i)+'_gt.npy', gt.data.numpy())
+def get_acc(args, gt, prds):
+    with th.no_grad():
+        n_gt = gt.data.clone()
+        n_prds = prds.data.clone()
+        n_gt[n_gt>=args.threshold]=1
+        n_gt[n_gt<args.threshold]=0
+        n_prds[n_prds>=args.threshold]=1
+        n_prds[n_prds<args.threshold]=0
+        return th.sum(n_prds==n_gt)
 
 def validate(args, test_loader):
-    sig = nn.Sigmoid()
-    model = th.load(args.load_model)
-    acc = 0
-    res = []
-    label = []
-    test_loader_iter = iter(test_loader)
-    for _ in range(len(test_loader_iter)):
-        batch = test_loader_iter.next()
-        prds = sig(model.predict(batch['data'].cuda()))
-        res.append(prds)
-        gt = batch['gt'].cuda()
-        gt[gt >= args.threshold] = 1
-        gt[gt < args.threshold] = 0
-        label.append(gt)
-        n_prds = prds
-        n_prds[n_prds >= args.threshold] = 1
-        n_prds[n_prds < args.threshold] = 0
-        acc += th.sum(n_prds == gt)
-    total = len(test_loader_iter)*args.batch_size
-    print('accuracy is %f >>> total true predictions: %d, number of test points: %d' %(float(acc)/float(total), acc, total))
-    f_res = th.cat((th.stack(res[:-1]).view(-1, 1), res[-1]), 0)
-    f_gt = th.cat((th.stack(label[:-1]).view(-1, 1), label[-1]), 0)
-    return f_res, f_gt
-        
+    with th.no_grad():
+        sig = nn.Sigmoid()
+        device = th.device("cuda:0" if th.cuda.is_available() else "cpu")
+        if args.model == 'LinearLayer':
+            trained_model = model.LinearLayer(args.feature_num)
+        trained_model.load_state_dict(th.load(args.load_model))
+        trained_model.to(device)
+        print('[{}]: model is successfully loaded.'.format(ctime()))
+
+        acc, res, label_pr, id_, label = 0, [], [], [], []
+        test_iter = iter(test_loader)
+        for _ in range(len(test_iter)):
+            batch = test_iter.next()
+            prds = sig(trained_model.predict(batch['data'].to(device)))
+            id_.append(batch['id'])
+            res.append(prds)
+            gt = batch['gt'].to(device)
+            label_pr.append(gt)
+            gt_binary = gt.data.clone()
+            gt_binary[gt_binary>=args.threshold]=1
+            gt_binary[gt_binary<args.threshold]=0
+            label.append(gt_binary)
+            acc += get_acc(args, gt, prds)
+        total = len(test_iter)*args.batch_size
+        print('[%s]: accuracy is %f >>> total true predictions: %d, number of test points: %d' %(ctime(), float(acc)/float(total), acc, total))
+    
+        f_id = th.cat((th.stack(id_[:-1]).view(-1, 1), id_[-1]), 0).data.numpy()
+        f_res = th.cat((th.stack(res[:-1]).view(-1, 1), res[-1]), 0).data.numpy()
+        f_gt_pr = th.cat((th.stack(label_pr[:-1]).view(-1, 1), label_pr[-1]), 0).data.numpy()
+        f_gt = th.cat((th.stack(label[:-1]).view(-1, 1), label[-1]), 0).data.numpy()
+        return f_id, f_res, f_gt_pr, f_gt
+
+def write_results(args, id_, res, gt_pr, gt):
+    path = args.save_res_to + 'predictions.csv'
+    names = ['id', 'prediction', 'label_pr', 'label_binary']
+    with open(path, 'w') as f:
+        f_w = csv.writer(f)
+        f_w.writerow(names)
+        for row in range(res.shape[0]):
+            write = []
+            write.extend([int(id_[row])])
+            write.extend(res[row])
+            write.extend(gt_pr[row])
+            write.extend([int(gt[row])])
+            f_w.writerow(write)
+
 def plot_curves(args, preds, gt):
     print('double checking the preds shape: (%d, %d)' %preds.shape)
     print('postive rate in the data: %f' % (np.sum(gt==1)/gt.shape[0]))
     fpr, tpr, threshold = metrics.roc_curve(gt, preds)
-    print(threshold)
-    print(np.sum(preds>1))
     roc_auc = metrics.auc(fpr, tpr)
 
     plt.title('ROC Curve')

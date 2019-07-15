@@ -16,7 +16,8 @@ class Sea2SkyDataset(Dataset):
         with h5py.File(self.path, 'r') as f:
             sample = {
                 'data': f[self.data_flag]['data'][index, :],
-                'gt': f[self.data_flag]['gt'][index, :]
+                'gt': f[self.data_flag]['gt'][index, :],
+                'id': f[self.data_flag]['id'][index, :]
             }
             return sample
 
