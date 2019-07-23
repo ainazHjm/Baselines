@@ -66,7 +66,7 @@ def write_results(args, id_, res, gt_pr, gt):
             write.extend([int(gt[row])])
             f_w.writerow(write)
 
-def plot_curves(args, preds, gt):
+def plot_curves(preds, gt):
     print('double checking the preds shape: (%d, %d)' %preds.shape)
     print('postive rate in the data: %f' % (np.sum(gt==1)/gt.shape[0]))
     fpr, tpr, threshold = metrics.roc_curve(gt, preds)
