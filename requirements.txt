@@ -1,0 +1,11 @@
+numpy==1.14.0
+unicodecsv==0.14.1
+h5py==2.7.0
+ijson==2.3
+jsonpickle==0.9.6
+jsonschema==2.6.0
+torch==1.0.0
+torchvision==0.2.0
+tensorboardX==1.2
+scikit-learn==0.19.1
+matplotlib==2.1.0
