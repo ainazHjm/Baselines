@@ -1,5 +1,7 @@
 # Baselines
-Requirements: Pytorch on a cuda enabled GPU, tensorboard, hdf5
+## Installation
+Install the required packages to run the code:
+  `pip install -r requirements.txt`
 
 This repo contains the baseline models for image data (hdf5 format) and a simple linear model for sea2sky data (csv format).
 
